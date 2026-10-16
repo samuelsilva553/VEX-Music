@@ -76,14 +76,15 @@ private suspend fun loadSongs(context: Context): List<Song> =
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.DURATION
+            MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media.DATA
         )
 
         try {
             context.contentResolver.query(
                 collection,
                 projection,
-                "${MediaStore.Audio.Media.IS_MUSIC} != 0",
+                "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= 45000",
                 null,
                 "${MediaStore.Audio.Media.TITLE} ASC"
             )?.use { cursor ->
@@ -99,6 +100,9 @@ private suspend fun loadSongs(context: Context): List<Song> =
                 val durationCol = cursor.getColumnIndexOrThrow(
                     MediaStore.Audio.Media.DURATION
                 )
+                val pathCol = cursor.getColumnIndexOrThrow(
+                    MediaStore.Audio.Media.DATA
+                )
 
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idCol)
@@ -107,6 +111,8 @@ private suspend fun loadSongs(context: Context): List<Song> =
                         ?.takeIf { it != "<unknown>" }
                         ?: "Artista desconhecido"
                     val duration = cursor.getLong(durationCol)
+                    val path = cursor.getString(pathCol)?.lowercase().orEmpty()
+                    if (listOf("/android/data/", "/android/obb/", "/android/media/").any { path.contains(it) }) continue
                     val uri = ContentUris.withAppendedId(
                         collection, id
                     ).toString()
