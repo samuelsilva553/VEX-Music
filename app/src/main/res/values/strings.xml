@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">VEX Music</string>
+    <string name="tagline">Sua música. Sem anúncios.</string>
+    <string name="perm_title">Permitir acesso às músicas</string>
+    <string name="perm_body">O VEX Music precisa ler os áudios do seu aparelho para montar a biblioteca. Nada é enviado para fora do celular.</string>
+    <string name="perm_button">Permitir acesso</string>
+    <string name="found_songs">%1$d músicas encontradas no aparelho</string>
+    <string name="found_none">Nenhuma música encontrada no aparelho</string>
+</resources>
