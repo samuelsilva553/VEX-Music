@@ -42,4 +42,5 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.media3:media3-exoplayer:1.4.1")
+    implementation("io.coil-kt:coil-compose:2.7.0")
 }
