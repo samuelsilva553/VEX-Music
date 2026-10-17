@@ -4,6 +4,9 @@ import android.Manifest
 import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.MediaMetadataRetriever
+import java.io.File
+import java.io.FileOutputStream
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
@@ -28,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,7 +58,7 @@ data class Song(
     val artist: String,
     val duration: Long,
     val uri: String,
-    val cover: String
+    val cover: String?
 )
 
 class MainActivity : ComponentActivity() {
@@ -93,8 +97,7 @@ private suspend fun loadSongs(context: Context): List<Song> =
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ARTIST,
             MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.DATA,
-            MediaStore.Audio.Media.ALBUM_ID
+            MediaStore.Audio.Media.DATA
         )
 
         try {
@@ -110,7 +113,6 @@ private suspend fun loadSongs(context: Context): List<Song> =
                 val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
                 val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
                 val pathCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
-                val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
 
                 while (cursor.moveToNext()) {
                     val path = cursor.getString(pathCol)?.lowercase().orEmpty()
@@ -119,7 +121,6 @@ private suspend fun loadSongs(context: Context): List<Song> =
                     }
 
                     val id = cursor.getLong(idCol)
-                    val albumId = cursor.getLong(albumCol)
                     val title = cursor.getString(titleCol)
                         ?.takeIf { it.isNotBlank() && it != "<unknown>" }
                         ?: "Música sem título"
@@ -127,11 +128,8 @@ private suspend fun loadSongs(context: Context): List<Song> =
                         ?.takeIf { it.isNotBlank() && it != "<unknown>" }
                         ?: "Artista desconhecido"
 
-                    val cover = ContentUris.withAppendedId(
-                        android.net.Uri.parse(
-                            "content://media/external/audio/albumart"
-                        ), albumId
-                    ).toString()
+                    val songUri = ContentUris.withAppendedId(collection, id)
+                    val cover = extractSongCover(context, songUri, id)
 
                     result.add(
                         Song(
@@ -139,7 +137,7 @@ private suspend fun loadSongs(context: Context): List<Song> =
                             title = title,
                             artist = artist,
                             duration = cursor.getLong(durationCol),
-                            uri = ContentUris.withAppendedId(collection, id).toString(),
+                            uri = songUri.toString(),
                             cover = cover
                         )
                     )
@@ -149,6 +147,37 @@ private suspend fun loadSongs(context: Context): List<Song> =
         }
         result
     }
+
+private fun extractSongCover(
+    context: Context,
+    songUri: android.net.Uri,
+    songId: Long
+): String? {
+    val directory = File(context.cacheDir, "vex_music_covers")
+    if (!directory.exists() && !directory.mkdirs()) return null
+
+    val file = File(directory, "$songId.jpg")
+    if (file.exists() && file.length() > 0L) {
+        return android.net.Uri.fromFile(file).toString()
+    }
+
+    val retriever = MediaMetadataRetriever()
+    return try {
+        retriever.setDataSource(context, songUri)
+        val picture = retriever.embeddedPicture ?: return null
+
+        FileOutputStream(file).use { output ->
+            output.write(picture)
+        }
+
+        android.net.Uri.fromFile(file).toString()
+    } catch (_: Exception) {
+        file.delete()
+        null
+    } finally {
+        retriever.release()
+    }
+}
 
 private fun timeText(ms: Long): String {
     val seconds = ms.coerceAtLeast(0L) / 1000
@@ -493,7 +522,9 @@ private fun Cover(song: Song, size: Int) {
         modifier = Modifier
             .size(size.dp)
             .clip(RoundedCornerShape(14.dp)),
-        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+        placeholder = ColorPainter(Panel),
+        error = ColorPainter(Panel)
     )
 }
 
@@ -610,7 +641,9 @@ private fun FullPlayer(
             model = song.cover,
             contentDescription = "Capa de ${song.title}",
             modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(28.dp)),
-            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            placeholder = ColorPainter(Panel),
+            error = ColorPainter(Panel)
         )
 
         Spacer(Modifier.weight(0.7f))
